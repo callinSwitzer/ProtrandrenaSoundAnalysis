@@ -1,0 +1,241 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+<pre>
+# Callin Switzer
+# Jan 18 2019
+
+# Make an oscillogram in R (show time vs. sound)
+# 
+# Make spectrogram (shows frequency vs. time)
+# 
+# Make a zoomed-in view of a portion of the sound
+
+</pre>
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r, warning = FALSE, message=FALSE}
+# install packages
+ipak <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if(length(new.pkg)) install.packages(new.pkg, dependencies = TRUE)
+  sapply(pkg, require, character.only = TRUE)
+}
+
+packages <- c("tuneR", "seewave", "signal", "tidyverse")
+ipak(packages)
+
+# set ggplot theme
+theme_set(theme_classic() + 
+            theme(axis.text=element_text(colour="black"), 
+                  text=element_text(size=10)))
+
+# set  directories
+dataDir <- file.path(getwd(), "data")
+figDir <- file.path(getwd(), "figures")
+
+print(paste("last run ", Sys.time()))
+print(R.version)
+```
+
+```{r}
+# set the audio player -- mac specific 
+# setWavPlayer("afplay")
+
+wavFle = file.path(dataDir, "Protandrena906 copy.wav")
+
+
+
+# load sound
+w1 <- readWave(wavFle)
+w1
+
+
+# view oscillogram chunks for each channel (left and right)
+tryCatch(oscillo(w1@right, f = w1@samp.rate), error = function(e) NA)
+tryCatch(oscillo(w1@right, f = w1@samp.rate), error = function(e) NA)
+
+
+
+
+
+# listen to sound (plays in only one headphone, by default)
+listen(w1)
+
+w2 <- w1@left[1:100000]
+sampRate = w1@samp.rate
+
+
+#W * (Fs/2) == half-amplitude cut-off when combined with filtfilt
+
+# filter
+bf <- butter(n = 5, 1/10, type="high")
+b1 <- filtfilt(bf, w2)
+plot(w2, type = "l")
+lines(b1, col="red")
+
+op = par()
+op$mai
+
+# redo fig 2
+
+# view spectrogram of a small portion of the recording
+# make figure 1
+sp1 <- spectro(cutw(w2, from = 2.5, to =4, f = sampRate), f = sampRate, dB = "D",
+               wl = 512, cexaxis = 1.2, cexlab = 1.2, scalecexlab = 1.2, oma = c(1,1,1,1),
+               wn = "hanning", 
+               ovlp = 50,
+               osc = TRUE,
+               palette = colorRampPalette(c("grey70", "black")), 
+               main = basename(wavFle) )
+
+
+
+
+  aa = cutw(w2, from = 1, to = 2, f = w2@samp.rate)
+  layout(matrix(c(1,1,2), nrow = 3, ncol = 1, byrow = TRUE))
+  par(mai = c(0,0,0,0))
+  plot(y = aa / max(aa), x = seq(0, 1, length.out = length(aa)), type = 'l', bty = "n", ylim = c(-4.5, 1), 
+       yaxt = "n", xlab = "", ylab = "", ann = FALSE, xaxt = "n"
+  )
+  # add scale
+  arrows(x0 = 0.8, y0 = -1.1, x1 = 1, y1 = -1.1, lwd = 1.2, length = 0.05, code = 3)
+  text(0.9, -1.15, "0.2 s", adj = c(0.5, 1.3), cex = 1.5)
+  
+  # add line segments
+  x0 = (1.435 - 1) 
+  x1 = (1.515 - 1) 
+  y0 = -0.3
+  y1 = -0.9
+  segments(x0, y0, x1 = x0, y1, lwd = 1.2)
+  segments(x0 = x1, y0, x1 = x1, y1, lwd = 1.2)
+  
+  # add arrows
+  arrows(x0, y0 = y1, x1 = 0, y1 = y1 - 1, lwd = 1.2, length = 0.05)
+  arrows(x0 = x1, y0 = y1, x1 = 1, y1 = y1 - 1, lwd = 1.2, length = 0.05)
+  
+  # add next layer
+  bb = cutw(w2, from = x0 + 1, to = x1 + 1, f = w2@samp.rate)
+  lines(bb/ max(bb) - 3,  x = seq(0, 1, length.out = length(bb)))
+  
+  # add scale
+  arrows(x0 = 0.8, y0 = -4.5+0.3, x1 = 1, y1 = -4.5 + 0.3, lwd = 1.2, length = 0.05, code = 3)
+  text(0.9, -4.55+0.3, "0.014 s", adj = c(0.5, 1.3), cex = 1.5)
+  
+  # add letters
+  text('A', x= 0, y = 1, cex = 2)
+  text('B', x= 0, y = -1.6, cex = 2)
+  
+  
+  # plot spectrum
+  spp <- spec((bb/max(bb)), f = w2@samp.rate, scaled = TRUE, fftw = TRUE, PSD = FALSE, wl = 1024, main = "FFT spectrum of zoomed section", plot = FALSE, norm = FALSE)
+  par(mai = c(0.6,0.7,0,0))
+  
+  spectrum = data.frame(unlist(spp))
+  xx <- c(spectrum$x * 1000, rev(spectrum$x * 1000))
+  ref = max(spectrum$y)
+  # calculate dB, with 0 being the max
+  dB = 20* log10(spectrum$y / ref)
+  yy <- c(rep(min(dB), length(dB)), rev(dB))
+  
+  plot(xx, yy, type = 'l', ylab = "Relative amplitude (dB)", xlab = "Frequency (Hz)", 
+       bty = "n", log = "x", ylim = c(-50, 0), cex.axis = 1.5, cex.lab = 1.5, xlim = c(100, 22050))
+  polygon(x = xx, y = yy, col='black', border=NA)
+  
+  # add text
+  text(round(xx[yy == max(yy)]), y = 0, labels = paste(round(xx[yy == max(yy)]), "Hz", sep  = " "), adj = c(-0.2, 0.5), cex = 1.5)
+  
+  mtext('C', at = c(51, 15), cex = 2 * 2/3)
+  
+ 
+
+
+
+
+  aa = cutw(w2, from = 1, to = 2, f = w2@samp.rate)
+  layout(matrix(c(1,1,2), nrow = 3, ncol = 1, byrow = TRUE))
+  par(mai = c(0,0,0,0))
+  plot(y = aa / max(aa), x = seq(0, 1, length.out = length(aa)), type = 'l', bty = "n", ylim = c(-4.5, 1), 
+       yaxt = "n", xlab = "", ylab = "", ann = FALSE, xaxt = "n"
+  )
+  # add scale
+  arrows(x0 = 0.8, y0 = -1.1, x1 = 1, y1 = -1.1, lwd = 1.2, length = 0.05, code = 3)
+  text(0.9, -1.15, "0.2 s", adj = c(0.5, 1.3), cex = 1.5)
+  
+  # add line segments
+  x0 = (1.435 - 1) 
+  x1 = (1.515 - 1) 
+  y0 = -0.3
+  y1 = -0.9
+  segments(x0, y0, x1 = x0, y1, lwd = 1.2)
+  segments(x0 = x1, y0, x1 = x1, y1, lwd = 1.2)
+  
+  # add arrows
+  arrows(x0, y0 = y1, x1 = 0, y1 = y1 - 1, lwd = 1.2, length = 0.05)
+  arrows(x0 = x1, y0 = y1, x1 = 1, y1 = y1 - 1, lwd = 1.2, length = 0.05)
+  
+  # add next layer
+  bb = cutw(w2, from = x0 + 1, to = x1 + 1, f = w2@samp.rate)
+  lines(bb/ max(bb) - 3,  x = seq(0, 1, length.out = length(bb)))
+  
+  # add scale
+  arrows(x0 = 0.8, y0 = -4.5+0.3, x1 = 1, y1 = -4.5 + 0.3, lwd = 1.2, length = 0.05, code = 3)
+  text(0.9, -4.55+0.3, "0.014 s", adj = c(0.5, 1.3), cex = 1.5)
+  
+  # add letters
+  text('A', x= 0, y = 1, cex = 2)
+  text('B', x= 0, y = -1.6, cex = 2)
+  
+  
+  # plot spectrum
+  spp <- spec((bb/max(bb)), f = w2@samp.rate, scaled = TRUE, fftw = TRUE, PSD = FALSE, wl = 1024, main = "FFT spectrum of zoomed section", plot = FALSE, norm = FALSE)
+  par(mai = c(0.6,0.7,0,0))
+  
+  spectrum = data.frame(unlist(spp))
+  xx <- c(spectrum$x * 1000, rev(spectrum$x * 1000))
+  ref = max(spectrum$y)
+  # calculate dB, with 0 being the max
+  dB = spectrum$y/max(spectrum$y)
+  yy <- c(rep(min(dB), length(dB)), rev(dB))
+  
+  yy = yy[xx >= 99]
+  xx = xx[xx>=99]
+  
+  plot(xx, yy, type = 'l', ylab = "Relative amplitude", xlab = "Frequency (Hz)", 
+       bty = "n", log = "x", cex.lab=1.5, cex.axis = 1.5, xlim = c(100, 22050), yaxt="n")
+  axis(side = 2, at = c(0,1), cex.axis = 1.5, cex.lab = 1.5)
+  polygon(x = xx, y = yy, col='black', border=NA)
+  
+  # add text
+  text(round(xx[yy == max(yy)]), y = 1, labels = paste(round(xx[yy == max(yy)]), "Hz", sep  = " "), adj = c(-0.2, 0.5), cex = 1.5)
+  
+  mtext('C', at = c(51, 15), cex = 2 * 2/3)
+  
+  
+
+
+# find max 
+xx[which.max(yy)]
+
+
+
+xx2 <- xx[xx > 600 & xx < 1000]
+yy2 <- yy[xx > 600 & xx < 1000]
+
+xx2[which.max(yy2)]
+
+points(xx2[which.max(yy2)], yy2[which.max(yy2)], col = 'red')
+points(xx[which.max(yy)], yy[which.max(yy)], col = 'red')
+xx[which.max(yy)]
+
+```
