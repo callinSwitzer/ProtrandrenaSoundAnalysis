@@ -116,16 +116,12 @@ b1 <- signal::filtfilt(bf, w2)
 plot(b1, type = 'l')
 
 # convert spiky signal to smooth signal
-
 b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 300)
 
 plot(b2, type = "l")
 
 
 # view fundamental frequency over time: 
-# with 50% overlap between successive sliding windows, time zoom and 
-# amplitude filter (threshold)
-# overlaid on a spectrogram
 spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
         scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
         main = paste0(basename(wavFle), " starting at ", 0, " seconds"), 
@@ -397,7 +393,7 @@ if(w1@stereo){
 }
 
 w2 <- w1@left
-listen(w2, f= sampRate)
+# listen(w2, f= sampRate)
 
 png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
 par(mfrow = c(3, 2))
