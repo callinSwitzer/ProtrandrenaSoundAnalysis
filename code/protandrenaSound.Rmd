@@ -395,10 +395,11 @@ if(w1@stereo){
 w2 <- w1@left
 # listen(w2, f= sampRate)
 
-png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
-par(mfrow = c(3, 2))
+#png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
+#par(mfrow = c(3, 2))
 
 plot(w2, type = 'l', ylab = "", main = "original sound")
+
 
 # high-pass filter
 bf = signal::butter(6, W = highpassFreq / nyqFreq, type = "high")
@@ -416,7 +417,8 @@ plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound, zoom
 spec(w2, f = sampRate, flim = c(0, 0.5))
 
 # convert spiky signal to smooth signal
-b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 150)
+# freq of interest is pretty robust, as long as it's large enough
+b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 500)
 
 
 plot(b2, type = 'l', ylab = "", main = "smoothed signal", 
