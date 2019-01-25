@@ -51,42 +51,6 @@ print(R.version)
 
 # Define spiky signal smoother function
 ```{r}
-spikySignalSmoother = function(spikySignal = y, sampFreq = sampFreq, freqOfInterest = 3){
-  # Makes a smooth waveform with the same frequency as
-  # the spiky signal
-  #
-  # Args:
-  #   spikySignal: Spiky signal to be smoothed
-  #   sampFreq: The sampling frequency of the spiky signal
-  #   freqOfInterest: A rough guess at the minimum frequency you're interested in resolving.
-  #     If you guess too below the frequency of interest, then you won't get a smooth waveform. 
-  #     If you guess too high, then you also won't get a smooth waveform.
-  #
-  # Returns:
-  #   A smooth waveform with the same length as the original spiky signal
-  
-  periodForFOI = sampFreq / freqOfInterest
-  filtSize = 4 * periodForFOI
-  
-  # defineFilter
-  gaussianFilter =  dnorm(x = seq(-4, 4, length.out =  filtSize))
-  filteredData = stats::filter(x=(spikySignal), filt = gaussianFilter, circular = TRUE)
-  
-  # rescale
-  scaledFilteredData <- (filteredData-min(filteredData))/(max(filteredData)-min(filteredData)) * 2 - 1
-  
-  # warning if returned waveform is not smooth
-  deriv <- diff(scaledFilteredData)
-  if(max(abs(deriv)) > 0.5){
-    warning("Returned wave may not be smooth. Try increasing freqOfInterest to be higher than signal frequency")
-  }
-  else if(sum(deriv == 0) / length(deriv) > 0.1 ){
-    warning("Returned wave may not be smooth. Try decreasing freqOfInterest")
-  }
-  
-  return(scaledFilteredData)
-}
-
 spikySignalSmoother_rollingMean = function(spikySignal = y, sampFreq = sampFreq, freqOfInterest = 3, 
                                            highPassFiltFreq = 50){
   # Makes a smooth waveform with the same frequency as
@@ -122,51 +86,6 @@ spikySignalSmoother_rollingMean = function(spikySignal = y, sampFreq = sampFreq,
 
 
 
-# highpass filter (pass high frequencies and attenuate low frequencies)
-
-```{r}
-
-w1 <- sine(440, duration = 0.5, xunit = "time")
-w2 <- sine(1000, duration = 0.5, xunit = "time")
-
-# combine
-w11 <- prepComb(w1, where = "end")
-w22 <- prepComb(w2, where = "start")
-combWave <- bind(w11, w22)
-# listen(combWave)
-
-
-#combWave <- Wave(rnorm(44100 / 2), samp.rate = 44100, bit = 16)
-
-spectro(combWave)
-
-
-# highpass filter Removes waves below a threshold
-nyqFreq = combWave@samp.rate / 2
-
-# 100 Hz is X * nyqFreq
-
-# W is % of nyquist frequency
-# for example 0.5 means a frequency of 22050 / 2 cutoff, since 22050
-# is the nyquist frequency
-HzCutoff = 700
-
-
-bf = signal::butter(10, W = HzCutoff / nyqFreq, type = "high")
-b1 <- signal::filtfilt(bf, combWave@left)
-dev.off()
-spectro(b1, f = w11@samp.rate)
-
-# # listen(b1, f = combWave@samp.rate)
-
-dev.off()
-spec(combWave)
-
-spec(b1, f = combWave@samp.rate)
-abline(v = 0.7, col = "red")
-```
-
-
 ```{r}
 # define sound
 wavFle = file.path(dataDir, "Protandrena906 copy.wav")
@@ -178,7 +97,7 @@ sampRate = w1@samp.rate
 nyqFreq = sampRate / 2
 
 # first highpass filter
-highpassFreq = 10000 # hz
+highpassFreq = 5000 # hz
 
 # convert to mono
 if(w1@stereo){
@@ -208,19 +127,9 @@ plot(b2, type = "l")
 # amplitude filter (threshold)
 # overlaid on a spectrogram
 spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
-        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1))
-fundPts = fund(b2,
-               f = sampRate, ovlp = 0.75, wl = 2**13,
-               fmax = 500,
-               threshold = 1, 
-               plot = FALSE) %>%
-          as.data.frame()
-# fundPts <- fundPts[fundPts[, 2] > highpassFreq / 1000, ]
-
-points(fundPts, pch = 20, col = 'red')
-
-
-
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        main = paste0(basename(wavFle), " starting at ", 0, " seconds"), 
+        osc = TRUE)
 
 ```
 
@@ -231,7 +140,8 @@ wavFle = file.path(dataDir, "STE-017 copy.wav")
 
 
 # load sound
-w1 <- readWave(wavFle, from = 54.5, to = 64.7, units = "sec")
+recStart = 53
+w1 <- readWave(wavFle, from = recStart, to = 64.7, units = "sec")
 sampRate = w1@samp.rate
 nyqFreq = sampRate / 2
 
@@ -257,24 +167,27 @@ plot(b1, type = 'l')
 # convert spiky signal to smooth signal
 b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 150)
 
-plot(b2, type = "l")
+# plot(b2, type = "l")
 
 
 # view fundamental frequency over time: 
-# with 50% overlap between successive sliding windows, time zoom and 
-# amplitude filter (threshold)
-# overlaid on a spectrogram
 spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
-        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1))
-fundPts = fund(b2,
-               f = sampRate, ovlp = 0.75, wl = 2**13,
-               fmax = 500,
-               threshold = 1, 
-               plot = FALSE) %>%
-          as.data.frame()
-fundPts <- fundPts[fundPts[, 2] > 100 / 1000, ]
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, 
+        main = paste0(basename(wavFle), " starting at ", recStart, " seconds"), 
+        tlab = paste0("Time (s) past ", recStart, " seconds"))
 
-points(fundPts, pch = 20, col = 'red')
+
+png(file.path(figDir, "STE-017_53-63_sec.png"), width = 6.5, height = 5, units = "in", 
+    res = 200)
+
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, 
+        main = paste0(basename(wavFle), " starting at ", recStart, " seconds"), 
+        tlab = paste0("Time (s) past ", recStart, " seconds"))
+
+dev.off()
 
 ```
 
@@ -321,20 +234,21 @@ b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 
 
 
 # view fundamental frequency over time: 
-# with 50% overlap between successive sliding windows, time zoom and 
-# amplitude filter (threshold)
-# overlaid on a spectrogram
+
 spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
-        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, .7), 
         osc = TRUE, main = paste0(basename(wavFle), " starting at ", recStart, " seconds"))
 
-fundPts = fund(b2, f = sampRate, fmax = 500, wl = 2**13, ovlp = 50,
-               plot = FALSE) %>%
-          as.data.frame()
-fundPts <- fundPts[fundPts[, 2] > 100 / 1000, ]
+png(file.path(figDir, "STE-005_35-44_sec.png"), width = 6.5, height = 5, units = "in", 
+    res = 200)
 
-# points(fundPts, pch = 20, col = 'red')
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 0.7), 
+        osc = TRUE, 
+        main = paste0(basename(wavFle), " starting at ", recStart, " seconds"), 
+        tlab = paste0("Time (s) past ", recStart, " seconds"))
 
+dev.off()
 ```
 
 
@@ -387,333 +301,140 @@ spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
         scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
         osc = TRUE, main = paste0(basename(wavFle), " starting at ", recStart, " seconds"))
 
-fundPts = fund(b2, f = sampRate, fmax = 500, wl = 2**13, ovlp = 50,
-               plot = FALSE) %>%
-          as.data.frame()
-fundPts <- fundPts[fundPts[, 2] > 100 / 1000, ]
+png(file.path(figDir, "STE-006_06-11_sec.png"), width = 6.5, height = 5, units = "in", 
+    res = 200)
 
-#points(fundPts, pch = 20, col = 'red')
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 0.7), 
+        osc = TRUE, 
+        main = paste0(basename(wavFle), " starting at ", recStart, " seconds"), 
+        tlab = paste0("Time (s) past ", recStart, " seconds"))
+
+dev.off()
 
 ```
 
 
+```{r}
+# load sound
+wavFle = file.path(dataDir, "STE-020 copy.wav")
 
 
+# load sound
+recStart = 114
+recEnd = 130
+w1 <- readWave(wavFle, from = recStart, to = recEnd, units = "sec")
+sampRate = w1@samp.rate
+nyqFreq = sampRate / 2
 
 
+# first highpass filter
+highpassFreq = 5000 # hz
 
+# convert to mono
+if(w1@stereo){
+  w1 <- mono(w1, "left")
+}
 
+w2 <- w1@left
+# listen(w2, f= sampRate)
 
+#plot(w2[seq(0, length(w2), length.out = 100000)], type = 'l')
 
+# high-pass filter
+bf = signal::butter(6, W = highpassFreq / nyqFreq, type = "high")
+b1 <- signal::filtfilt(bf, w2)
+# listen(b1, f = sampRate)
 
+#plot(b1, type = 'l')
 
+# convert spiky signal to smooth signal
+b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 150)
 
-___
+#plot(b2, type = "l")
 
 
+# view fundamental frequency over time: 
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, main = paste0(basename(wavFle), " starting at ", recStart, " seconds"))
 
-<!-- ```{r} -->
-<!-- # define sound -->
-<!-- wavFle = file.path(dataDir, "STE-017 copy.wav") -->
+png(file.path(figDir, "STE-020_114-130_sec.png"), width = 6.5, height = 5, units = "in", 
+    res = 200)
 
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 0.7), 
+        osc = TRUE, 
+        main = paste0(basename(wavFle), " starting at ", recStart, " seconds"), 
+        tlab = paste0("Time (s) past ", recStart, " seconds"))
 
-<!-- # load sound -->
-<!-- w1 <- readWave(wavFle, from = 54.5, to = 64.7, units = "sec") -->
-<!-- # listen(w1) -->
-<!-- # convert to mono -->
-<!-- if(w1@stereo){ -->
-<!--   w1 <- mono(w1, "left") -->
-<!-- } -->
-<!-- sampRate = w1@samp.rate -->
-<!-- nyqFreq = sampRate / 2 -->
-<!-- highpassFreq = 1000 # hz -->
+dev.off()
 
-<!-- w2 <- w1@left -->
+```
 
-<!-- # high-pass filter -->
-<!-- bf = signal::butter(6, W = highpassFreq / nyqFreq, type = "high") -->
-<!-- b1 <- signal::filtfilt(bf, w2) -->
 
-<!-- # rolling mean converts pointy waves into smooth waves -->
-<!-- b1 <- zoo::rollmean(abs(b1), k = 100 ) -->
+# Make a figure outlining the process
+```{r}
 
+# load sound
+wavFle = file.path(dataDir, "STE-020 copy.wav")
 
-<!-- res = Wave(left = b1, samp.rate = sampRate, bit = 16) -->
-<!-- # listen(res) -->
 
-<!-- # high-pass filter 2 -->
-<!-- hp2 = 50 -->
-<!-- bf = signal::butter(6, W = hp2 / nyqFreq, type = "high") -->
-<!-- b2 <- signal::filtfilt(bf, b1) -->
-<!-- res = Wave(left = b2, samp.rate = sampRate, bit = 16) -->
+# load sound
+recStart = 116.5
+recEnd = 119
+w1 <- readWave(wavFle, from = recStart, to = recEnd, units = "sec")
+sampRate = w1@samp.rate
+nyqFreq = sampRate / 2
 
 
-<!-- overlap = 50 -->
-<!-- windLen = 2**12 -->
+# first highpass filter
+highpassFreq = 5000 # hz
 
-<!-- spectro(b2, f=sampRate, ovlp=overlap,  -->
-<!--         zp=16, wl = windLen, -->
-<!--         scale=FALSE, palette=reverse.gray.colors.2,  -->
-<!--         flim = c(0, .5)) -->
-<!-- fundPts = fund(res,f = sampRate, ovlp = 0.2, wl = 2**12, -->
-<!--                fmax = 500, -->
-<!--                threshold = 20,  -->
-<!--                plot = FALSE) %>% -->
-<!--           as.data.frame() -->
-<!-- # fundPts <- fundPts[fundPts[, 2] > highpassFreq / 1000, ] -->
+# convert to mono
+if(w1@stereo){
+  w1 <- mono(w1, "left")
+}
 
-<!-- points(fundPts, pch = 20, col = 'red') -->
+w2 <- w1@left
+listen(w2, f= sampRate)
 
-<!-- ss = 6 -->
-<!-- stp = 6.1 -->
-<!-- length((ss*sampRate) : (stp*sampRate)) -->
+png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
+par(mfrow = c(3, 2))
 
+plot(w2, type = 'l', ylab = "", main = "original sound")
 
-<!-- spec(b1[(ss*sampRate) : (stp*sampRate)], f = sampRate, wl = windLen ) -->
+# high-pass filter
+bf = signal::butter(6, W = highpassFreq / nyqFreq, type = "high")
+b1 <- signal::filtfilt(bf, w2)
+#listen(b1, f = sampRate)
 
+plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound")
+polygon(x = c(4e04, 4e04, 4.5e04, 4.5e04), 
+        y = c(-500, 500, 500, -500), border = NA,
+        col = rgb(1,0.1, 0.5,0.5) )
 
+plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound, zoomed", 
+     x = (1:length(b1)) / sampRate,
+     xlim =c(sampRate,sampRate + 0.1*sampRate) / sampRate , xlab = "Time (s)")
+spec(w2, f = sampRate, flim = c(0, 0.5))
 
+# convert spiky signal to smooth signal
+b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 150)
 
-<!-- plot((b1[(ss*sampRate) : (stp*sampRate)]), type = "l") -->
 
-<!-- plot(abs(b1[(ss*sampRate) : (stp*sampRate)]), type = "l") -->
+plot(b2, type = 'l', ylab = "", main = "smoothed signal", 
+     x = (1:length(b2)) / sampRate,
+     xlim =c(sampRate,sampRate + 0.1*sampRate) / sampRate , xlab = "Time (s)")
+spec(b2, f = sampRate, flim = c(0, 0.5))
 
+dev.off()
 
-<!-- movingAvg = zoo::rollmean(abs(b1[(ss*sampRate) : (stp*sampRate)]), k = 100 ) -->
-<!-- specPts = seewave::spec(movingAvg-mean(movingAvg), f = sampRate, wl = windLen, flim = c(0, 1)) -->
-<!-- specPts[,1][which.max(specPts[,2])]*1000 -->
+# view fundamental frequency over time: 
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, main = paste0(basename(wavFle), " starting at ", recStart, " seconds"))
 
 
-<!-- plot(movingAvg-mean(movingAvg), type = "l") -->
+```
 
-
-<!-- # listen(b1[(ss*sampRate) : (stp*sampRate)], f = sampRate) -->
-
-<!-- spectrum(b1[(ss*sampRate) : (stp*sampRate)], f = sampRate) -->
-
-
-<!-- acp = acf(b1[(ss*sampRate) : (stp*sampRate)], lag.max = 1500) -->
-<!-- plot(abs(acp$acf), type = "l") -->
-<!-- summary(acp) -->
-<!-- acS = spectrum(abs(acp$acf[200:length(acp$acf)]), f = sampRate) -->
-<!-- plot(acS) -->
-<!-- acS$freq[which.max(acS$spec)]* 1000 -->
-
-<!-- plot(acp) -->
-
-
-<!-- sampRate = w1@samp.rate -->
-<!-- #w2 <- sine(450, samp.rate = sampRate, duration = 2, xunit = "time") -->
-<!-- #oscillo(w2) -->
-
-
-<!-- p = tuneR::periodogram(w1, width = 1024) -->
-<!-- plot(p) -->
-
-<!-- ff1 <- FF(p) -->
-<!-- plot(ff1) -->
-
-<!-- spp <- spec(w2*2, f = sampRate, scaled = TRUE, fftw = TRUE, PSD = FALSE, wl = 1024, main = "FFT spectrum", plot = FALSE, norm = FALSE) -->
-
-<!-- spectrum = data.frame(unlist(spp)) -->
-
-<!-- linearSpectrum = spectrum -->
-
-<!-- xx <- c(linearSpectrum$x * 1000, rev(linearSpectrum$x * 1000)) #  # convert from kHz to Hz -->
-<!-- # calculate dB, with 0 being the max -->
-<!-- dB = linearSpectrum$y -->
-<!-- yy <- c(rep(min(dB), length(dB)), rev(dB)) -->
-
-<!-- plot(xx[xx > 99], yy[xx > 99], type = 'l', ylab = "Absolute amplitude", xlab = "Frequency (Hz)", bty = "n", log = "x", cex.lab=1.1, xlim = c(100, 22050)) -->
-<!-- polygon(x = xx, y = yy, col='black', border=NA) -->
-<!-- abline(h = c(4,2,1), lty = 2) -->
-
-
-<!-- # high-pass with a 100 Hz cutoff frequency -->
-<!-- res <- bwfilter(w2, n=5, f = sampRate, from = 20, output = "Wave") -->
-<!-- res = w2 -->
-<!-- #oscillo(res) -->
-
-<!-- # view fundamental frequency over time:  -->
-<!-- # with 50% overlap between successive sliding windows, time zoom and  -->
-<!-- # amplitude filter (threshold) -->
-<!-- # overlaid on a spectrogram -->
-<!-- spectro(res, f=sampRate,ovlp=0,wl = 2**11,  -->
-<!--         scale=FALSE, -->
-<!--         palette=reverse.gray.colors.2, flim = c(0, 1), osc = TRUE) -->
-
-<!-- mtext(text = basename(wavFle), side = 3) -->
-<!-- par(new=TRUE) -->
-<!-- p = periodogram(res, width = 2**11) -->
-<!-- ff1 <- FF(p) -->
-<!-- points(x = seq(0, length(res@left) / res@samp.rate,  -->
-<!--                length.out = length(ff1)),  -->
-<!--        y = ff1 / 1000,  -->
-<!--        col = "red") -->
-
-
-<!-- ``` -->
-
-
-
-
-
-
-<!-- ```{r} -->
-
-
-<!-- op = par() -->
-<!-- op$mai -->
-
-<!-- # redo fig 2 -->
-
-<!-- # view spectrogram of a small portion of the recording -->
-<!-- # make figure 1 -->
-<!-- sp1 <- spectro(cutw(w2, from = 2.5, to =4, f = sampRate), f = sampRate, dB = "D", -->
-<!--                wl = 512, cexaxis = 1.2, cexlab = 1.2, scalecexlab = 1.2, oma = c(1,1,1,1), -->
-<!--                wn = "hanning",  -->
-<!--                ovlp = 50, -->
-<!--                osc = TRUE, -->
-<!--                palette = colorRampPalette(c("grey70", "black")),  -->
-<!--                main = basename(wavFle) ) -->
-
-
-
-
-<!--   aa = cutw(w2, from = 1, to = 2, f = w2@samp.rate) -->
-<!--   layout(matrix(c(1,1,2), nrow = 3, ncol = 1, byrow = TRUE)) -->
-<!--   par(mai = c(0,0,0,0)) -->
-<!--   plot(y = aa / max(aa), x = seq(0, 1, length.out = length(aa)), type = 'l', bty = "n", ylim = c(-4.5, 1),  -->
-<!--        yaxt = "n", xlab = "", ylab = "", ann = FALSE, xaxt = "n" -->
-<!--   ) -->
-<!--   # add scale -->
-<!--   arrows(x0 = 0.8, y0 = -1.1, x1 = 1, y1 = -1.1, lwd = 1.2, length = 0.05, code = 3) -->
-<!--   text(0.9, -1.15, "0.2 s", adj = c(0.5, 1.3), cex = 1.5) -->
-
-<!--   # add line segments -->
-<!--   x0 = (1.435 - 1)  -->
-<!--   x1 = (1.515 - 1)  -->
-<!--   y0 = -0.3 -->
-<!--   y1 = -0.9 -->
-<!--   segments(x0, y0, x1 = x0, y1, lwd = 1.2) -->
-<!--   segments(x0 = x1, y0, x1 = x1, y1, lwd = 1.2) -->
-
-<!--   # add arrows -->
-<!--   arrows(x0, y0 = y1, x1 = 0, y1 = y1 - 1, lwd = 1.2, length = 0.05) -->
-<!--   arrows(x0 = x1, y0 = y1, x1 = 1, y1 = y1 - 1, lwd = 1.2, length = 0.05) -->
-
-<!--   # add next layer -->
-<!--   bb = cutw(w2, from = x0 + 1, to = x1 + 1, f = w2@samp.rate) -->
-<!--   lines(bb/ max(bb) - 3,  x = seq(0, 1, length.out = length(bb))) -->
-
-<!--   # add scale -->
-<!--   arrows(x0 = 0.8, y0 = -4.5+0.3, x1 = 1, y1 = -4.5 + 0.3, lwd = 1.2, length = 0.05, code = 3) -->
-<!--   text(0.9, -4.55+0.3, "0.014 s", adj = c(0.5, 1.3), cex = 1.5) -->
-
-<!--   # add letters -->
-<!--   text('A', x= 0, y = 1, cex = 2) -->
-<!--   text('B', x= 0, y = -1.6, cex = 2) -->
-
-
-<!--   # plot spectrum -->
-<!--   spp <- spec((bb/max(bb)), f = w2@samp.rate, scaled = TRUE, fftw = TRUE, PSD = FALSE, wl = 1024, main = "FFT spectrum of zoomed section", plot = FALSE, norm = FALSE) -->
-<!--   par(mai = c(0.6,0.7,0,0)) -->
-
-<!--   spectrum = data.frame(unlist(spp)) -->
-<!--   xx <- c(spectrum$x * 1000, rev(spectrum$x * 1000)) -->
-<!--   ref = max(spectrum$y) -->
-<!--   # calculate dB, with 0 being the max -->
-<!--   dB = 20* log10(spectrum$y / ref) -->
-<!--   yy <- c(rep(min(dB), length(dB)), rev(dB)) -->
-
-<!--   plot(xx, yy, type = 'l', ylab = "Relative amplitude (dB)", xlab = "Frequency (Hz)",  -->
-<!--        bty = "n", log = "x", ylim = c(-50, 0), cex.axis = 1.5, cex.lab = 1.5, xlim = c(100, 22050)) -->
-<!--   polygon(x = xx, y = yy, col='black', border=NA) -->
-
-<!--   # add text -->
-<!--   text(round(xx[yy == max(yy)]), y = 0, labels = paste(round(xx[yy == max(yy)]), "Hz", sep  = " "), adj = c(-0.2, 0.5), cex = 1.5) -->
-
-<!--   mtext('C', at = c(51, 15), cex = 2 * 2/3) -->
-
-
-
-
-
-
-<!--   aa = cutw(w2, from = 1, to = 2, f = w2@samp.rate) -->
-<!--   layout(matrix(c(1,1,2), nrow = 3, ncol = 1, byrow = TRUE)) -->
-<!--   par(mai = c(0,0,0,0)) -->
-<!--   plot(y = aa / max(aa), x = seq(0, 1, length.out = length(aa)), type = 'l', bty = "n", ylim = c(-4.5, 1),  -->
-<!--        yaxt = "n", xlab = "", ylab = "", ann = FALSE, xaxt = "n" -->
-<!--   ) -->
-<!--   # add scale -->
-<!--   arrows(x0 = 0.8, y0 = -1.1, x1 = 1, y1 = -1.1, lwd = 1.2, length = 0.05, code = 3) -->
-<!--   text(0.9, -1.15, "0.2 s", adj = c(0.5, 1.3), cex = 1.5) -->
-
-<!--   # add line segments -->
-<!--   x0 = (1.435 - 1)  -->
-<!--   x1 = (1.515 - 1)  -->
-<!--   y0 = -0.3 -->
-<!--   y1 = -0.9 -->
-<!--   segments(x0, y0, x1 = x0, y1, lwd = 1.2) -->
-<!--   segments(x0 = x1, y0, x1 = x1, y1, lwd = 1.2) -->
-
-<!--   # add arrows -->
-<!--   arrows(x0, y0 = y1, x1 = 0, y1 = y1 - 1, lwd = 1.2, length = 0.05) -->
-<!--   arrows(x0 = x1, y0 = y1, x1 = 1, y1 = y1 - 1, lwd = 1.2, length = 0.05) -->
-
-<!--   # add next layer -->
-<!--   bb = cutw(w2, from = x0 + 1, to = x1 + 1, f = w2@samp.rate) -->
-<!--   lines(bb/ max(bb) - 3,  x = seq(0, 1, length.out = length(bb))) -->
-
-<!--   # add scale -->
-<!--   arrows(x0 = 0.8, y0 = -4.5+0.3, x1 = 1, y1 = -4.5 + 0.3, lwd = 1.2, length = 0.05, code = 3) -->
-<!--   text(0.9, -4.55+0.3, "0.014 s", adj = c(0.5, 1.3), cex = 1.5) -->
-
-<!--   # add letters -->
-<!--   text('A', x= 0, y = 1, cex = 2) -->
-<!--   text('B', x= 0, y = -1.6, cex = 2) -->
-
-
-<!--   # plot spectrum -->
-<!--   spp <- spec((bb/max(bb)), f = w2@samp.rate, scaled = TRUE, fftw = TRUE, PSD = FALSE, wl = 1024, main = "FFT spectrum of zoomed section", plot = FALSE, norm = FALSE) -->
-<!--   par(mai = c(0.6,0.7,0,0)) -->
-
-<!--   spectrum = data.frame(unlist(spp)) -->
-<!--   xx <- c(spectrum$x * 1000, rev(spectrum$x * 1000)) -->
-<!--   ref = max(spectrum$y) -->
-<!--   # calculate dB, with 0 being the max -->
-<!--   dB = spectrum$y/max(spectrum$y) -->
-<!--   yy <- c(rep(min(dB), length(dB)), rev(dB)) -->
-
-<!--   yy = yy[xx >= 99] -->
-<!--   xx = xx[xx>=99] -->
-
-<!--   plot(xx, yy, type = 'l', ylab = "Relative amplitude", xlab = "Frequency (Hz)",  -->
-<!--        bty = "n", log = "x", cex.lab=1.5, cex.axis = 1.5, xlim = c(100, 22050), yaxt="n") -->
-<!--   axis(side = 2, at = c(0,1), cex.axis = 1.5, cex.lab = 1.5) -->
-<!--   polygon(x = xx, y = yy, col='black', border=NA) -->
-
-<!--   # add text -->
-<!--   text(round(xx[yy == max(yy)]), y = 1, labels = paste(round(xx[yy == max(yy)]), "Hz", sep  = " "), adj = c(-0.2, 0.5), cex = 1.5) -->
-
-<!--   mtext('C', at = c(51, 15), cex = 2 * 2/3) -->
-
-
-
-
-<!-- # find max  -->
-<!-- xx[which.max(yy)] -->
-
-
-
-<!-- xx2 <- xx[xx > 600 & xx < 1000] -->
-<!-- yy2 <- yy[xx > 600 & xx < 1000] -->
-
-<!-- xx2[which.max(yy2)] -->
-
-<!-- points(xx2[which.max(yy2)], yy2[which.max(yy2)], col = 'red') -->
-<!-- points(xx[which.max(yy)], yy[which.max(yy)], col = 'red') -->
-<!-- xx[which.max(yy)] -->
-
-<!-- ``` -->
