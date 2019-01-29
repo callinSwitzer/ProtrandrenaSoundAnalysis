@@ -395,10 +395,19 @@ if(w1@stereo){
 w2 <- w1@left
 # listen(w2, f= sampRate)
 
-#png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
-#par(mfrow = c(3, 2))
+# do save: 
+png(file.path(figDir, "Process.png"), width = 8, height = 8, res = 200, units = "in")
+par(mfrow = c(3, 3))
 
-plot(w2, type = 'l', ylab = "", main = "original sound")
+plot(w2, type = 'l', ylab = "", main = "original sound", x = (1:length(w2)) / sampRate, xlab = "Time (s)")
+polygon(x = c(1, 1, 1.1, 1.1), 
+        y = c(-5000, 5000, 5000, -5000), border = NA,
+        col = rgb(1,0.1, 0.5,0.5) )
+
+plot(w2, type = 'l', ylab = "", main = "original sound, zoomed", 
+     x = (1:length(w2)) / sampRate,
+     xlim =c(sampRate,sampRate + 0.1*sampRate) / sampRate , xlab = "Time (s)")
+spec(w2, f = sampRate, flim = c(0, 0.5), main = "original sound spectrum")
 
 
 # high-pass filter
@@ -406,25 +415,32 @@ bf = signal::butter(6, W = highpassFreq / nyqFreq, type = "high")
 b1 <- signal::filtfilt(bf, w2)
 #listen(b1, f = sampRate)
 
-plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound")
-polygon(x = c(4e04, 4e04, 4.5e04, 4.5e04), 
-        y = c(-500, 500, 500, -500), border = NA,
+plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound", x = (1:length(b1)) / sampRate, xlab = "Time (s)")
+polygon(x = c(1, 1, 1.1, 1.1), 
+        y = c(-5000, 5000, 5000, -5000), border = NA,
         col = rgb(1,0.1, 0.5,0.5) )
 
 plot(b1, type = 'l', ylab = "", main = "highpass filtered (>5000 Hz) sound, zoomed", 
      x = (1:length(b1)) / sampRate,
      xlim =c(sampRate,sampRate + 0.1*sampRate) / sampRate , xlab = "Time (s)")
-spec(w2, f = sampRate, flim = c(0, 0.5))
+spec(b1, f = sampRate, flim = c(0, 20), main = "highpass filtered sound spectrum")
+
+
 
 # convert spiky signal to smooth signal
 # freq of interest is pretty robust, as long as it's large enough
 b2 <- spikySignalSmoother_rollingMean(b1, sampFreq = sampRate, freqOfInterest = 500)
-
-
 plot(b2, type = 'l', ylab = "", main = "smoothed signal", 
      x = (1:length(b2)) / sampRate,
+     xlab = "Time (s)")
+polygon(x = c(1, 1, 1.1, 1.1), 
+        y = c(-5000, 5000, 5000, -5000), border = NA,
+        col = rgb(1,0.1, 0.5,0.5) )
+
+plot(b2, type = 'l', ylab = "", main = "smoothed signal, zoomed", 
+     x = (1:length(b2)) / sampRate,
      xlim =c(sampRate,sampRate + 0.1*sampRate) / sampRate , xlab = "Time (s)")
-spec(b2, f = sampRate, flim = c(0, 0.5))
+spec(b2, f = sampRate, flim = c(0, 0.5), main = "rolling mean spectrum")
 
 dev.off()
 
@@ -432,6 +448,17 @@ dev.off()
 spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
         scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
         osc = TRUE, main = paste0(basename(wavFle), " starting at ", recStart, " seconds"))
+
+
+
+spectro(w2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, main = "spectrum of original sound")
+
+spectro(b2, f=sampRate, ovlp=50, zp=16, wl = 2**13,
+        scale=FALSE, palette=reverse.gray.colors.2, flim = c(0, 1), 
+        osc = TRUE, main = "spectrum highpass + rolling mean sound")
+
 
 
 ```
